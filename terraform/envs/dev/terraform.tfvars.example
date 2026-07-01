@@ -1,0 +1,14 @@
+# Copy this file to terraform.tfvars and fill in your actual values.
+# terraform.tfvars is git-ignored and must NEVER be committed.
+#
+# Local init command after filling in values:
+#   terraform init \
+#     -backend-config="bucket=<state_bucket>" \
+#     -backend-config="region=<aws_region>" \
+#     -backend-config="dynamodb_table=<lock_table>"
+
+project_name = "your-project-placeholder"
+aws_region   = "us-east-1"
+environment  = "dev"
+state_bucket = "terraform-state-your-project-placeholder"
+lock_table   = "terraform-state-lock-your-project-placeholder"
