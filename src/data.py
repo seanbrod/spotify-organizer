@@ -142,6 +142,10 @@ def get_playlist_tracks(playlist_id: str) -> dict[str,str]:
 
     return ids_names
 
+#TODO: this will pull track metadata and audio features for analysis
+def get_track_data():
+    return None
+
 #----------------------------------------------DEPRECIATED FUNCTIONS----------------------------------------------
 #this func gets auth code from redirect url
 def get_authcode_redirect():
