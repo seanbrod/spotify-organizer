@@ -64,8 +64,83 @@ def get_refresh_token() -> str:
     return r.json()['access_token']
 
 #----------------------------------------------HELPER FUNCTIONS----------------------------------------------
+#this func parses the response for get_playlist_ids and returns the dict[name,id]
+def parse_playlist_ids(response, pls) -> dict[str, str]:
+    data = response.json()
+    pl_set = set(pls)
+    names_ids = {}
+    for item in data['items']:
+        name = item['name']
+        if name in pl_set:
+            names_ids[name] = item['id']
+    return names_ids
+
+#this func will take in a response package full of 50 or under tracks and return a dict[id, name] of tracks
+def parse_track_ids(data) -> dict[str, str]:
+    ids_names = {}
+    for item in data['items']:
+        ids_names[item['item']['id']] = item['item']['name']
+    return ids_names
 
 #----------------------------------------------DATA HARVESTING FUNCTIONS----------------------------------------------
+#this func will take in a list of playlist names and return a dict[name, id]
+def get_playlist_ids(playlists: list[str]) -> dict[str,str]:
+    offset = 0
+    limit = 50
+    access_url=f'https://api.spotify.com/v1/me/playlists?limit={limit}&offset={offset}'
+    access_token=get_refresh_token()
+
+    headers = {
+        'Authorization':f'Bearer {access_token}'
+    }
+
+    try:
+        r = requests.get(access_url, headers=headers)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP Error: {e}")
+        print(f"Response Body: {r.text}") # Shows Spotify's detailed error message
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(f"Network error occurred: {e}")
+        sys.exit(1)
+
+    return parse_playlist_ids(r, playlists)
+
+#this func will pull and return all the track ids dict[id, name] of a specific playlist given its playlist id
+def get_playlist_tracks(playlist_id: str) -> dict[str,str]:
+    mkt = 'US'
+    limit = 50
+    offset = 0
+    fields = 'total,items(item(id,name))'
+    access_token=get_refresh_token()
+    ids_names = {}
+
+    headers = {
+        'Authorization':f'Bearer {access_token}'
+    }
+
+    while True:
+        access_url=f'https://api.spotify.com/v1/playlists/{playlist_id}/items?market={mkt}&fields={fields}&limit={limit}&offset={offset}'
+        try:
+            r = requests.get(access_url, headers=headers)
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print(f"HTTP Error: {e}")
+            print(f"Response Body: {r.text}") # Shows Spotify's detailed error message
+            sys.exit(1)
+        except requests.exceptions.RequestException as e:
+            print(f"Network error occurred: {e}")
+            sys.exit(1)
+        
+        data = r.json()
+        ids_names |= parse_track_ids(data)
+        offset += limit
+        
+        if data['total'] < limit:
+            break
+
+    return ids_names
 
 #----------------------------------------------DEPRECIATED FUNCTIONS----------------------------------------------
 #this func gets auth code from redirect url
@@ -114,3 +189,19 @@ def get_private_token() -> str:
     data = r.json()
     print(data['refresh_token'])
     return data['access_token']
+
+
+def main():
+
+
+    pls = ['Type shi', 'Workout']
+    playlists = get_playlist_ids(pls)
+    for name, id in playlists.items():
+        print(f'name: {name}, id: {id}\n')
+    
+    tracks = get_playlist_tracks(playlists['Workout'])
+    for id, name in tracks.items():
+        print(f'name: {name}, id: {id}\n')
+
+if __name__=='__main__':
+    main()
