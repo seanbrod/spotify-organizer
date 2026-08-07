@@ -1,5 +1,6 @@
 import sqlite3
 
+#this func initalizes the database
 def init_db():
     conn = sqlite3.connect('data/songs_artists.db')
     cur = conn.cursor() #object used to execute sql queries on db
@@ -18,7 +19,7 @@ def init_db():
     cur.execute(song_creation_query)
 
     #Song Table
-    #track_id, track_name, album, duration(ms), is_explicit(boolean), is_playable(in mkt), primary_artist_id
+    #track_id, track_name, album, playlist_name(personal pl name), playlist_id(personal pl id), duration(ms), is_explicit(boolean), is_playable(in mkt), primary_artist_id
     #acousticness, danceability, energy, instrumentalness, key, liveness, loudness, mode, speechiness, tempo, valence
     cur.execute('DROP TABLE IF EXISTS songs')
     song_creation_query = """
@@ -26,6 +27,8 @@ def init_db():
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             album TEXT
+            playlist_name TEXT,
+            playlist_id TEXT,
             duration_ms INTEGER,
             is_explicit INTEGER,
             is_playable INTEGER,
@@ -48,6 +51,8 @@ def init_db():
     conn.commit()
     conn.close()
 
+def ingest_data(data):
+    return None
 
 
 def main():
