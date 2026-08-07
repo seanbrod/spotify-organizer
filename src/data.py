@@ -7,8 +7,6 @@ import urllib
 import base64
 from dotenv import load_dotenv
 
-import json
-
 #----------------------------------------------API ACCESS FUNCTIONS----------------------------------------------
 load_dotenv()
 CLIENT_ID=os.getenv('CLIENT_ID')
@@ -125,22 +123,10 @@ def get_artist_genres(name:str):
     tags = r.json().get('toptags', {}).get('tag', [])
     return [t['name'].lower() for t in tags[:3]]
 
-def get_artist_data(data):
-    artists = []
-    art_list = data['artists']
-    for artist in art_list:
-        obj = {
-        'artist_name': artist['name'],
-        'artist_id': artist['id'],
-        'artist_genres': get_artist_genres(artist['name'])
-        }
-        artists.append(obj)
-    return artists
-
-
 #this func will take in a spotify track object and parse it for desired metadata
 #album, duration(ms), is_explicit(boolean), is_playable(in mkt), track_name, track_id, artist_name, artist_id, artist_genre
 def parse_track_metadata(data):
+    primary_artist = data['album']['artists'][0]
     md = {
         'name': data['name'],
         'id': data['id'],
@@ -148,7 +134,9 @@ def parse_track_metadata(data):
         'duration': data['duration_ms'],
         'is_explicit': data['explicit'],
         'is_playable': data['is_playable'],
-        'artists': get_artist_data(data)
+        'artist_name': primary_artist['name'],
+        'artist_id': primary_artist['id'],
+        'artist_genres': get_artist_genres(primary_artist['name'])
         }
     return md
 
@@ -350,6 +338,7 @@ def get_private_token() -> str:
 
 
 def main():
+    import json
     #pls = ['Workout', 'Beach']
     #data = handler(pls)
     #print(json.dumps(data, indent=4))
