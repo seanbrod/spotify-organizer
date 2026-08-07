@@ -7,13 +7,16 @@ import urllib
 import base64
 from dotenv import load_dotenv
 
+import json
+
 #----------------------------------------------API ACCESS FUNCTIONS----------------------------------------------
 load_dotenv()
 CLIENT_ID=os.getenv('CLIENT_ID')
 CLIENT_SECRET=os.getenv('CLIENT_SECRET')
 REDIRECT_URI=os.getenv('REDIRECT_URI')
 REFRESH_TOKEN=os.getenv('REFRESH_TOKEN')
-
+SOUNDNET_TOKEN=os.getenv('SOUNDNET_TOKEN')
+LASTFM_TOKEN=os.getenv('LASTFM_TOKEN')
 
 #this func gets a public access token (limit 1hr)
 def get_public_token() -> str:
@@ -83,7 +86,7 @@ def parse_track_ids(data) -> dict[str, str]:
     return ids_names
 
 #this func finds the total items in a playlist and returns as an int for use in get_playlist_tracks
-def get_pl_item_total(url, headers) -> int:
+def get_pl_item_total(url: str, headers) -> int:
     try:
         r = requests.get(url, headers=headers)
         r.raise_for_status()
@@ -97,6 +100,65 @@ def get_pl_item_total(url, headers) -> int:
         
     data = r.json()
     return data['total']
+
+#this func queries LastFM API to get top 3 genre tags for an artist given the name
+def get_artist_genres(name:str):
+    url='https://ws.audioscrobbler.com/2.0/'
+    params = {
+        'method': 'artist.gettoptags',
+        'artist': name,
+        'api_key': LASTFM_TOKEN,
+        'format': 'json'
+    }
+
+    try:
+        r = requests.get(url, params=params)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP Error: {e}")
+        print(f"Response Body: {r.text}") # Shows detailed error message
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(f"Network error occurred: {e}")
+        sys.exit(1)
+    
+    tags = r.json().get('toptags', {}).get('tag', [])
+    return [t['name'].lower() for t in tags[:3]]
+
+def get_artist_data(data):
+    artists = []
+    art_list = data['artists']
+    for artist in art_list:
+        obj = {
+        'artist_name': artist['name'],
+        'artist_id': artist['id'],
+        'artist_genres': get_artist_genres(artist['name'])
+        }
+        artists.append(obj)
+    return artists
+
+
+#this func will take in a spotify track object and parse it for desired metadata
+#album, duration(ms), is_explicit(boolean), is_playable(in mkt), track_name, track_id, artist_name, artist_id, artist_genre
+def parse_track_metadata(data):
+    md = {
+        'name': data['name'],
+        'id': data['id'],
+        'album': data['album']['name'],
+        'duration': data['duration_ms'],
+        'is_explicit': data['explicit'],
+        'is_playable': data['is_playable'],
+        'artists': get_artist_data(data)
+        }
+    return md
+
+#this track will clean and normalize track audio features (really just removes unwanted elements)
+def normalize_track_af(data):
+    data = data['content'][0]
+    data.pop('href')
+    data.pop('id')
+    data.pop('isrc')
+    return data
 
 
 #----------------------------------------------DATA HARVESTING FUNCTIONS----------------------------------------------
@@ -163,8 +225,8 @@ def get_playlist_tracks(playlist_id: str) -> dict[str,str]:
 
     return ids_names
 
-#this func will pull the track object from spotify
-def get_track_object(id):
+#this func will pull and return the track metadata from spotify
+def get_track_metadata(id: str):
     mkt='US'
     access_url=f'https://api.spotify.com/v1/tracks/{id}?market={mkt}'
     access_token=get_refresh_token()
@@ -184,8 +246,60 @@ def get_track_object(id):
         print(f"Network error occurred: {e}")
         sys.exit(1)
 
-    return r.json()
+    return parse_track_metadata(r.json())
 
+#this func will get track audio features from SoundNet RapidAPI
+def get_track_audio_features(id: str):
+    access_url=f'https://api.reccobeats.com/v1/audio-features?ids={id}'
+
+    headers = {
+        'Accept': 'application/json'
+    }
+    payload = {}
+    try:
+        r = requests.get(access_url, headers=headers, data=payload)
+        r.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP Error: {e}")
+        print(f"Response Body: {r.text}") # Shows Spotify's detailed error message
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
+        print(f"Network error occurred: {e}")
+        sys.exit(1)
+
+    return normalize_track_af(r.json())
+
+#this func will take in a track ID and return its audio features + metadata
+def get_track_data(id: str):
+    t_md = {}
+    t_md |= get_track_metadata(id)
+    t_id = t_md['id']
+    track_data = {
+        t_id: t_md
+    }
+    track_data[t_id] |= get_track_audio_features(id)
+    return track_data
+
+#this func will  take in a playlist ID and pull the track data for each track in the playlist
+def get_playlist_data(playlist_id: str):
+    pl_data = {}
+    tracks = get_playlist_tracks(playlist_id)
+    for id in tracks.keys():
+        pl_data |= get_track_data(id)
+    return pl_data
+
+#overally data.py handler:
+    #ask and intake playlist names (maybe normalize playlist names?)-spotify api already does this
+    #get playlist ids
+    #for each playlist id get playlist data
+    #save playlist datas to persistent stoarge for analysis
+def handler(args):
+    pls = get_playlist_ids(args)
+    big_data = {}
+    for id in pls.values():
+        big_data |= get_playlist_data(id)
+    return big_data
+    
 #----------------------------------------------DEPRECIATED FUNCTIONS----------------------------------------------
 #this func gets auth code from redirect url
 def get_authcode_redirect():
@@ -236,16 +350,30 @@ def get_private_token() -> str:
 
 
 def main():
+    #pls = ['Workout', 'Beach']
+    #data = handler(pls)
+    #print(json.dumps(data, indent=4))
 
-
-    pls = ['Type shi', 'For the people']
-    playlists = get_playlist_ids(pls)
-    for name, id in playlists.items():
-        print(f'name: {name}, id: {id}\n')
+    #playlists = get_playlist_ids(pls)
+    #for name, id in playlists.items():
+    #    print(f'name: {name}, id: {id}\n')
     
-    tracks = get_playlist_tracks(playlists['For the people'])
-    for id, name in tracks.items():
-        print(f'name: {name}, id: {id}\n')
+    #tracks = get_playlist_tracks(playlists['For the people'])
+    #for id, name in tracks.items():
+    #    print(f'name: {name}, id: {id}\n')
+    
+
+   #print(get_artist_genres('Glass Animals'))
+    
+    #d = get_track_metadata('2klj0StczYde6WUHBJo5F6')
+    #print(d)
+    #print(json.dumps(d, indent=4, sort_keys=True))
+
+    #d = get_track_audio_features('2klj0StczYde6WUHBJo5F6')
+    #print(json.dumps(d, indent=4, sort_keys=True))
+
+    d = get_track_data('2klj0StczYde6WUHBJo5F6')
+    print(json.dumps(d, indent=4))
 
 if __name__=='__main__':
     main()
