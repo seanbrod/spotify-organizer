@@ -13,6 +13,7 @@ The goal of this project is simple, I want to be able to take my playlists which
 - Energy: (0.0, 1.0)
 - Instrumentalness: (0.0, 1.0)
 - Key: 
+```bash
 {
     -1 -> None,
     0 -> C,
@@ -28,13 +29,16 @@ The goal of this project is simple, I want to be able to take my playlists which
     10 -> A#/Bf,
     11 -> B
 }
+```
 - Liveness: (0.0, 1.0)
 - Loudness: (-60db, 0db)
 - Mode:
+```bash
 {
     0 -> Minor,
     1 -> Major
 }
+```
 - Speechiness: (0.0, 1.0)
 - Tempo: (0BPM, 250BPM)
 - Valence: (0.0, 1.0)

@@ -5,7 +5,9 @@ import os
 import sys
 import urllib
 import base64
+import time
 from dotenv import load_dotenv
+from db import ingest_data
 
 #----------------------------------------------API ACCESS FUNCTIONS----------------------------------------------
 load_dotenv()
@@ -142,12 +144,31 @@ def parse_track_metadata(data):
 
 #this track will clean and normalize track audio features (really just removes unwanted elements)
 def normalize_track_af(data):
-    data = data['content'][0]
-    data.pop('href')
-    data.pop('id')
-    data.pop('isrc')
+    if data['content']:
+        data = data['content'][0]
+        data.pop('href')
+        data.pop('id')
+        data.pop('isrc')
+    else:
+        #TODO: have function call function in analyze.py which finds song in DB and does analyse to fill vals. if not in DB(kaggle) keep null
+        data = {
+        "acousticness": None,
+        "danceability": None,
+        "energy": None,
+        "instrumentalness": None,
+        "key": None,
+        "liveness": None,
+        "loudnesss": None,
+        "mode": None,
+        "speechiness": None,
+        "tempo": None,
+        "valence": None
+        }
     return data
 
+#this func will cache the playlist data in persistent storage (SQLite)
+def cache_data(data):
+    ingest_data(data)
 
 #----------------------------------------------DATA HARVESTING FUNCTIONS----------------------------------------------
 #this func will take in a list of playlist names and return a dict[name, id]
@@ -254,12 +275,15 @@ def get_track_audio_features(id: str):
     except requests.exceptions.RequestException as e:
         print(f"Network error occurred: {e}")
         sys.exit(1)
-
+    time.sleep(0.1) #recco beats is rate limited
     return normalize_track_af(r.json())
 
 #this func will take in a track ID and return its audio features + metadata
-def get_track_data(id: str):
-    t_md = {}
+def get_track_data(playlist_name: str, playlist_id: str, id: str):
+    t_md = {
+        'playlist_name': playlist_name,
+        'playlist_id': playlist_id
+    }
     t_md |= get_track_metadata(id)
     t_id = t_md['id']
     track_data = {
@@ -269,11 +293,11 @@ def get_track_data(id: str):
     return track_data
 
 #this func will  take in a playlist ID and pull the track data for each track in the playlist
-def get_playlist_data(playlist_id: str):
+def get_playlist_data(playlist_name: str, playlist_id: str):
     pl_data = {}
     tracks = get_playlist_tracks(playlist_id)
     for id in tracks.keys():
-        pl_data |= get_track_data(id)
+        pl_data |= get_track_data(playlist_name, playlist_id, id)
     return pl_data
 
 #overally data.py handler:
@@ -281,11 +305,14 @@ def get_playlist_data(playlist_id: str):
     #get playlist ids
     #for each playlist id get playlist data
     #save playlist datas to persistent stoarge for analysis
+    #TODO:run analysis
+    #TODO:reorganize playlists with analysis
 def handler(args):
     pls = get_playlist_ids(args)
     big_data = {}
-    for id in pls.values():
-        big_data |= get_playlist_data(id)
+    for name, id in pls.items():
+        big_data |= get_playlist_data(name, id)
+    #cache_data(big_data)
     return big_data
     
 #----------------------------------------------DEPRECIATED FUNCTIONS----------------------------------------------
@@ -339,30 +366,9 @@ def get_private_token() -> str:
 
 def main():
     import json
-    #pls = ['Workout', 'Beach']
-    #data = handler(pls)
-    #print(json.dumps(data, indent=4))
-
-    #playlists = get_playlist_ids(pls)
-    #for name, id in playlists.items():
-    #    print(f'name: {name}, id: {id}\n')
-    
-    #tracks = get_playlist_tracks(playlists['For the people'])
-    #for id, name in tracks.items():
-    #    print(f'name: {name}, id: {id}\n')
-    
-
-   #print(get_artist_genres('Glass Animals'))
-    
-    #d = get_track_metadata('2klj0StczYde6WUHBJo5F6')
-    #print(d)
-    #print(json.dumps(d, indent=4, sort_keys=True))
-
-    #d = get_track_audio_features('2klj0StczYde6WUHBJo5F6')
-    #print(json.dumps(d, indent=4, sort_keys=True))
-
-    d = get_track_data('2klj0StczYde6WUHBJo5F6')
-    print(json.dumps(d, indent=4))
+    pls = [ 'Beach', 'Winter']
+    data = handler(pls)
+    print(json.dumps(data, indent=4))
 
 if __name__=='__main__':
     main()

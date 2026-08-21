@@ -1,6 +1,6 @@
 ## data.py
 -get spotify playlists and tracks (DONE)
--get tracks audio features
+-get tracks audio features (DONE)
     - https://medium.com/@soundnet717/spotify-audio-analysis-has-been-deprecated-what-now-4808aadccfcb (Not Enough Bandwidth)
     - https://reccobeats.com/docs/apis/get-track-audio-features (https://www.reddit.com/r/spotifyapi/comments/1hcafvg/audio_features_alternative/) (CHOSEN APPROACH)
     - https://www.kaggle.com/datasets/rodolfofigueroa/spotify-12m-songs 
