@@ -7,6 +7,7 @@ import urllib
 import base64
 import time
 from dotenv import load_dotenv
+from db import ingest_data
 
 #----------------------------------------------API ACCESS FUNCTIONS----------------------------------------------
 load_dotenv()
@@ -149,9 +150,25 @@ def normalize_track_af(data):
         data.pop('id')
         data.pop('isrc')
     else:
-        data = data['content']
+        #TODO: have function call function in analyze.py which finds song in DB and does analyse to fill vals. if not in DB(kaggle) keep null
+        data = {
+        "acousticness": None,
+        "danceability": None,
+        "energy": None,
+        "instrumentalness": None,
+        "key": None,
+        "liveness": None,
+        "loudnesss": None,
+        "mode": None,
+        "speechiness": None,
+        "tempo": None,
+        "valence": None
+        }
     return data
 
+#this func will cache the playlist data in persistent storage (SQLite)
+def cache_data(data):
+    ingest_data(data)
 
 #----------------------------------------------DATA HARVESTING FUNCTIONS----------------------------------------------
 #this func will take in a list of playlist names and return a dict[name, id]
@@ -283,15 +300,13 @@ def get_playlist_data(playlist_name: str, playlist_id: str):
         pl_data |= get_track_data(playlist_name, playlist_id, id)
     return pl_data
 
-#TODO: this func will cache the playlist data in persistent storage (SQLite)
-def cache_data(data):
-    return None
-
 #overally data.py handler:
     #ask and intake playlist names (maybe normalize playlist names?)-spotify api already does this
     #get playlist ids
     #for each playlist id get playlist data
     #save playlist datas to persistent stoarge for analysis
+    #TODO:run analysis
+    #TODO:reorganize playlists with analysis
 def handler(args):
     pls = get_playlist_ids(args)
     big_data = {}
@@ -352,33 +367,8 @@ def get_private_token() -> str:
 def main():
     import json
     pls = [ 'Beach', 'Winter']
-    #data = handler(pls)
-    #print(json.dumps(data, indent=4))
-
-    playlists = get_playlist_ids(pls)
-    #for name, id in playlists.items():
-    #    print(f'name: {name}, id: {id}\n')
-    
-    #tracks = get_playlist_tracks(playlists['For the people'])
-    #for id, name in tracks.items():
-    #    print(f'name: {name}, id: {id}\n')
-    
-
-   #print(get_artist_genres('Glass Animals'))
-    
-    #d = get_track_metadata('2klj0StczYde6WUHBJo5F6')
-    #print(d)
-    #print(json.dumps(d, indent=4, sort_keys=True))
-
-    #d = get_track_audio_features('2klj0StczYde6WUHBJo5F6')
-    #print(json.dumps(d, indent=4, sort_keys=True))
-
-    #d = get_track_data('hey','2','7K3Lc3TfSR14aTOjIH7TUj')
-    #print(json.dumps(d, indent=4))
-    pld={}
-    for name, id in playlists.items():
-        pld |= get_playlist_data(name, id)
-    print(json.dumps(pld, indent=4))
+    data = handler(pls)
+    print(json.dumps(data, indent=4))
 
 if __name__=='__main__':
     main()
